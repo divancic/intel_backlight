@@ -1,0 +1,80 @@
+#!/usr/bin/env python3
+
+class IntelBacklight(object):
+    GET="/sys/class/backlight/intel_backlight/actual_brightness"
+    SET="/sys/class/backlight/intel_backlight/brightness"
+    MAX="/sys/class/backlight/intel_backlight/max_brightness"
+
+    def __init__(self):
+        with open(self.MAX, "r") as f:
+            self._min = 0
+            self._max = int(f.read())
+
+    @property
+    def absolute(self):
+        with open(self.GET, "r") as f:
+            return int(f.read())
+
+    @absolute.setter
+    def absolute(self, value):
+        value = self._min if value < self._min else value
+        value = self._max if value > self._max else value
+        with open(self.SET, "w") as f:
+            f.write(str(value))
+
+    def absolute_inc(self, value):
+        self.absolute += value
+
+    def absolute_dec(self, value):
+        self.absolute -= value
+
+
+    @property
+    def percentile(self):
+        return round(self.absolute / self._max * 100, 2)
+
+    @percentile.setter
+    def percentile(self, value):
+        self.absolute = int(value / 101 * self._max)
+
+    def percentile_inc(self, value):
+        self.absolute += int(value / 101 * self._max)
+
+    def percentile_dec(self, value):
+        self.absolute -= int(value / 101 * self._max)
+
+
+if __name__ == "__main__":
+    import argparse
+
+    def uint(value):
+        try:
+            if int(value) < 0: raise
+        except:
+            raise argparse.ArgumentTypeError("{} should be positive integer".format(value))
+        return int(value)
+
+    parser = argparse.ArgumentParser(prog = "intel_backlight", description = "Control intel backlight")
+    value_type = parser.add_argument('--type', choices = ["absolute", "percentile"], default = "percentile")
+
+    command = parser.add_subparsers(dest = "command", required = True)
+
+    command.add_parser("get", help = "get the current backlight value")
+    command.add_parser("set", help = "set the new backlight value").add_argument("value", type = uint, help = "new value")
+    command.add_parser("inc", help = "increase the backlight by value").add_argument("value", type = uint, help = "new value")
+    command.add_parser("dec", help = "decrease the backlight by value").add_argument("value", type = uint, help = "new value")
+
+    args = parser.parse_args()
+
+    if args.command == "get":
+        print("{}".format(eval("IntelBacklight().{}".format(args.type))))
+
+    elif args.command == "set":
+        exec("IntelBacklight().{} = {}".format(args.type, args.value))
+
+    elif args.command == "inc":
+        exec("IntelBacklight().{}_inc({})".format(args.type, args.value))
+
+    elif args.command == "dec":
+        exec("IntelBacklight().{}_dec({})".format(args.type, args.value))
+
